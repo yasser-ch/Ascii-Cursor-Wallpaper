@@ -9,6 +9,10 @@ It is one self-contained HTML file: no install, no server, no dependencies, and 
 
 
 
+https://github.com/user-attachments/assets/becbee59-bb44-4b53-81c3-04e3de8e91ff
+
+
+
 
 
 <sub>Running as a live wallpaper on a Windows desktop (via Lively). Artwork credit below.</sub>
