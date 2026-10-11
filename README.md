@@ -4,11 +4,11 @@ Turn any picture into an **interactive ASCII-art desktop wallpaper** that reacts
 
 It is one self-contained HTML file: no install, no server, no dependencies, and **no network access**.
 
-![ASCII wallpaper running on a Windows desktop](docs/desktop.jpg)
+![ASCII wallpaper running on a Windows desktop](docs/screenshot-desktop.jpg)
 
 <sub>Running as a live wallpaper on a Windows desktop (via Lively). Artwork credit below.</sub>
 
-![Builder](docs/builder.jpg)
+![Builder](docs/screenshot-builder.jpg)
 
 ## What it does
 
@@ -23,13 +23,13 @@ It is one self-contained HTML file: no install, no server, no dependencies, and 
 
 **Cursor effects** (push, pull, lens, wake, flashlight):
 
-![Effects](docs/effects.jpg)
+![Effects](docs/screenshot-effects.jpg)
 
 **Photo reveal** (the original picture shows through around the cursor):
 
-![Photo reveal](docs/photo-reveal.jpg)
+![Photo reveal](docs/screenshot-photo-reveal.jpg)
 
-![Themes](docs/themes.jpg)
+![Themes](docs/screenshot-themes.jpg)
 
 ## Quick start
 
