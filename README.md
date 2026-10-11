@@ -6,6 +6,12 @@ It is one self-contained HTML file: no install, no server, no dependencies, and 
 
 ![ASCII wallpaper running on a Windows desktop](docs/screenshot-desktop.jpg)
 
+
+
+https://github.com/user-attachments/assets/5ec5ec07-4023-4020-98cf-ea852ea6e6cd
+
+
+
 <sub>Running as a live wallpaper on a Windows desktop (via Lively). Artwork credit below.</sub>
 
 **Before and after:**
