@@ -4,6 +4,10 @@ Turn any picture into an **interactive ASCII-art desktop wallpaper** that reacts
 
 It is one self-contained HTML file: no install, no server, no dependencies, and **no network access**.
 
+![ASCII wallpaper running on a Windows desktop](docs/desktop.jpg)
+
+<sub>Running as a live wallpaper on a Windows desktop (via Lively). Artwork credit below.</sub>
+
 ![Builder](docs/builder.jpg)
 
 ## What it does
@@ -17,9 +21,13 @@ It is one self-contained HTML file: no install, no server, no dependencies, and 
 - **Settings:** save and load your look as a small JSON file (your last settings are also remembered in the browser).
 - **Light on the CPU:** frame cap plus an adaptive throttle that slows down when your machine struggles.
 
-| Cursor effects | Photo reveal |
-|---|---|
-| ![Effects](docs/effects.jpg) | ![Photo reveal](docs/photo-reveal.jpg) |
+**Cursor effects** (push, pull, lens, wake, flashlight):
+
+![Effects](docs/effects.jpg)
+
+**Photo reveal** (the original picture shows through around the cursor):
+
+![Photo reveal](docs/photo-reveal.jpg)
 
 ![Themes](docs/themes.jpg)
 
@@ -69,7 +77,8 @@ The suite drives a real headless Chromium: it renders every cursor effect and th
 
 ## Credits
 
-Test image: astronaut portrait of Eileen Collins, NASA, public domain (as distributed with [scikit-image](https://scikit-image.org/)).
+- Demo wallpaper: red spider lily artwork from [Wallhaven](https://wallhaven.cc/), uploaded by [leoscau](https://wallhaven.cc/user/leoscau). The original artist is not known to the author, and the artwork itself is not included in this repository, only ASCII renderings of it. If you are the artist and want it credited differently or removed, please open an issue.
+- Test and photo-reveal image: astronaut portrait of Eileen Collins, NASA, public domain (as distributed with [scikit-image](https://scikit-image.org/)).
 
 Made by Yasser Chettour.
 
