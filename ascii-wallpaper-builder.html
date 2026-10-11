@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; frame-src about:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>ASCII wallpaper builder</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0c0d0b; color: #d8d8d0; font-family: system-ui, sans-serif; }
+  .app { display: grid; grid-template-columns: 330px 1fr; min-height: 100vh; }
+  aside { padding: 20px; border-right: 1px solid #23241f; display: flex; flex-direction: column; gap: 13px; }
+  main { padding: 20px; min-width: 0; }
+  h1 { font-size: 1.05rem; margin: 0; }
+  h2 { font-size: .72rem; margin: 6px 0 -4px; color: #8a8a82; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  p.hint { margin: 0; color: #8a8a82; font-size: .82rem; line-height: 1.4; }
+  label { display: flex; flex-direction: column; gap: 5px; font-size: .85rem; }
+  label .row { display: flex; justify-content: space-between; }
+  label .val { color: #f5b82e; font-variant-numeric: tabular-nums; }
+  select, input[type=text] { background: #1a1b18; color: inherit; border: 1px solid #333; padding: 6px 8px; border-radius: 6px; }
+  input[type=range] { accent-color: #f5b82e; }
+  .check { flex-direction: row; align-items: center; gap: 8px; }
+  #drop { border: 1.5px dashed #444; border-radius: 10px; padding: 18px 12px; text-align: center; color: #9a9a92; font-size: .85rem; cursor: pointer; }
+  #drop.over { border-color: #f5b82e; color: #f5b82e; }
+  #info { font-size: .78rem; color: #8a8a82; min-height: 1.1em; }
+  button { background: #f5b82e; color: #1a1400; border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 600; cursor: pointer; font-size: .95rem; }
+  button.ghost { background: #1a1b18; color: #d8d8d0; border: 1px solid #333; font-weight: 500; }
+  #stage { position: relative; width: 100%; overflow: hidden; border: 1px solid #23241f; border-radius: 10px; background: #000; }
+  #frame { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform-origin: 0 0; }
+  .credit { margin: 4px 0 0; text-align: center; font-size: .72rem; color: #5f5f58; letter-spacing: .04em; }
+  .note { margin-top: 10px; font-size: .8rem; color: #8a8a82; line-height: 1.5; }
+  @media (max-width: 800px) { .app { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid #23241f; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>ASCII wallpaper builder</h1>
+    <p class="hint">Drop an image, tune the look against the live preview, then download the finished wallpaper file and load it in Lively. Everything stays on your machine.</p>
+
+    <div id="drop">Drop an image here, or click to choose<input id="file" type="file" accept="image/*" hidden></div>
+    <div id="info">No image yet. Only the animated background is shown.</div>
+
+    <h2>Look</h2>
+    <label>Theme
+      <select id="palette">
+        <option value="rgb" selected>rgb (animated rainbow)</option>
+        <option value="photo">photo (the image's own colors)</option>
+        <option value="spectrum">spectrum (hue follows the cursor)</option>
+        <option value="sunset">sunset</option>
+        <option value="lava">lava</option>
+        <option value="synthwave">synthwave</option>
+        <option value="amber">amber</option>
+        <option value="matrix">matrix</option>
+        <option value="ice">ice</option>
+        <option value="magenta">magenta</option>
+        <option value="mono">mono</option>
+      </select>
+    </label>
+    <label>Glyph set
+      <select id="ramp">
+        <option value="fine" selected>fine (about 50 glyphs, sorted by ink)</option>
+        <option value="classic">classic (10 glyphs)</option>
+      </select>
+    </label>
+    <label>Fit
+      <select id="fit">
+        <option value="contain" selected>contain (whole image, centered)</option>
+        <option value="cover">cover (fills the screen, crops)</option>
+      </select>
+    </label>
+    <label><span class="row"><span>Image size (contain mode)</span><span class="val" id="scaleV"></span></span>
+      <input id="scale" type="range" min="0.4" max="1" step="0.01" value="0.85"></label>
+
+    <h2>Image clarity</h2>
+    <label class="check"><input id="autolv" type="checkbox" checked> Auto levels (stretch the tones)</label>
+    <label class="check"><input id="edges" type="checkbox"> Edge glyphs (draw outlines with / \ | -)</label>
+    <label class="check"><input id="invert" type="checkbox"> Invert (dark subject on a light background)</label>
+    <label><span class="row"><span>Detail boost</span><span class="val" id="detailV"></span></span>
+      <input id="detail" type="range" min="0" max="2" step="0.05" value="0.8"></label>
+    <label><span class="row"><span>Contrast</span><span class="val" id="contrastV"></span></span>
+      <input id="contrast" type="range" min="0.5" max="3" step="0.05" value="1.2"></label>
+    <label><span class="row"><span>Brightness</span><span class="val" id="brightV"></span></span>
+      <input id="bright" type="range" min="0.6" max="1.8" step="0.05" value="1"></label>
+
+    <h2>Behavior</h2>
+    <label>Cursor effect
+      <select id="reaction">
+        <option value="push" selected>push (glyphs flee the cursor)</option>
+        <option value="pull">pull (glyphs gather around it)</option>
+        <option value="lens">lens (magnifying bulge)</option>
+        <option value="wake">wake (dragged along your motion)</option>
+        <option value="flashlight">flashlight (lit only around the cursor)</option>
+      </select>
+    </label>
+    <label class="check"><input id="photoRev" type="checkbox"> Reveal the original photo near the cursor</label>
+    <label><span class="row"><span>Reveal size</span><span class="val" id="prsV"></span></span>
+      <input id="prs" type="range" min="0.5" max="1.6" step="0.05" value="1"></label>
+    <label><span class="row"><span>Reveal fades</span><span class="val" id="prfV"></span></span>
+      <input id="prf" type="range" min="0.75" max="0.97" step="0.01" value="0.9"></label>
+    <label>Click effect
+      <select id="click">
+        <option value="ripple" selected>ripple (soft ring)</option>
+        <option value="burst">burst (fast shockwave)</option>
+        <option value="none">none</option>
+      </select>
+    </label>
+    <label><span class="row"><span>Image visible at rest</span><span class="val" id="restV"></span></span>
+      <input id="rest" type="range" min="0" max="0.8" step="0.02" value="0.4"></label>
+    <label><span class="row"><span>Cursor lights it up, lingers</span><span class="val" id="decayV"></span></span>
+      <input id="decay" type="range" min="0.95" max="0.997" step="0.001" value="0.985"></label>
+    <label><span class="row"><span>Cursor radius</span><span class="val" id="radiusV"></span></span>
+      <input id="radius" type="range" min="80" max="360" step="5" value="190"></label>
+    <label><span class="row"><span>Character size (smaller = finer, heavier)</span><span class="val" id="cellV"></span></span>
+      <input id="cell" type="range" min="10" max="24" step="1" value="15"></label>
+
+    <label>Word to reveal (used when no image is loaded)
+      <input id="word" type="text" value="" maxlength="14" placeholder="optional, e.g. your name">
+    </label>
+
+    <button id="download">Download wallpaper</button>
+    <button id="downloadLively" class="ghost">Download for Lively with settings (.zip)</button>
+    <p class="hint" style="margin-top:-4px">Extract the zip into a folder you will keep (right-click, Extract All). In Lively, add index.html like any other wallpaper, then right-click it and choose Customise.</p>
+    <button id="remove" class="ghost">Remove image</button>
+    <div style="display:flex;gap:8px">
+      <button id="saveSet" class="ghost" style="flex:1">Save settings</button>
+      <button id="loadSet" class="ghost" style="flex:1">Load settings</button>
+      <input id="setFile" type="file" accept=".json,application/json" hidden>
+    </div>
+    <p class="hint" style="margin-top:-4px">Settings are also remembered automatically in this browser. The image is not part of the settings file.</p>
+    <p class="credit">Made by Yasser Chettour</p>
+  </aside>
+
+  <main>
+    <div id="stage"><iframe id="frame" title="preview"></iframe></div>
+    <div class="note">Preview is drawn at 1920x1080 and scaled to fit. Move the mouse over it. Click for a shockwave.<br>
+      Tip: a face or object with a clear outline and a plain background works best. If the picture is blank where it should be bright, try Invert.</div>
+  </main>
+</div>
+
+<!-- The wallpaper engine. It gets embedded, together with your settings, into the downloaded file. -->
+<script id="engine" type="text/plain">
+
+window.__startWallpaper = function (U) {
+let __alive = true;
+const __undo = [];
+function on(t, e, f, o) { t.addEventListener(e, f, o); __undo.push(function () { t.removeEventListener(e, f, o); }); }
+
+const THEMES = {
+  amber:     { bg: '#0b0c0a', kind: 'flat', low: [58, 50, 22],  high: [255, 205, 80]  },
+  matrix:    { bg: '#050a06', kind: 'flat', low: [10, 50, 20],  high: [90, 255, 120]  },
+  ice:       { bg: '#07090d', kind: 'flat', low: [25, 45, 75],  high: [150, 220, 255] },
+  magenta:   { bg: '#0b070c', kind: 'flat', low: [70, 25, 70],  high: [255, 110, 220] },
+  mono:      { bg: '#0a0a0a', kind: 'flat', low: [45, 45, 45],  high: [235, 235, 235] },
+  rgb:       { bg: '#06060a', kind: 'hue' },
+  photo:     { bg: '#06060a', kind: 'photo' },
+  spectrum:  { bg: '#06060a', kind: 'cursor' },
+  sunset:    { bg: '#0d0709', kind: 'pos', axis: 'y',  stops: [[255, 94, 98], [255, 153, 102], [255, 206, 84], [176, 70, 160], [70, 40, 140]] },
+  aurora:    { bg: '#030a0c', kind: 'pos', axis: 'xy', stops: [[40, 255, 160], [60, 200, 255], [150, 90, 255], [40, 255, 160]] },
+  lava:      { bg: '#0c0504', kind: 'pos', axis: 'y',  stops: [[255, 240, 150], [255, 150, 30], [220, 50, 20], [120, 15, 10]] },
+  synthwave: { bg: '#0a0612', kind: 'pos', axis: 'y',  stops: [[255, 60, 200], [160, 80, 255], [40, 220, 255]] },
+  daylight:  { bg: '#07080c', kind: 'tod' },
+  custom:    { bg: '#07080c', kind: 'custom' },
+};
+const CFG = Object.assign({
+  palette: 'rgb', word: '', image: '', fit: 'contain', invert: false,
+  contrast: 1.2, gamma: 1.0, detail: 0.8, autoLevels: true, edgeGlyphs: false,
+  restVis: 0.4, imageScale: 0.85, rampMode: 'fine',
+  cell: 15, fps: 30, ambient: 0.40, radius: 190, push: 10,
+  trailDecay: 0.93, wordDecay: 0.985, wordStrength: 0.95,
+  idleAfterMs: 4000,
+  reaction: 'push', click: 'ripple', strength: 1,
+  scan: false, adaptive: true, showFps: false,
+  photoReveal: false, photoSize: 1, photoFade: 0.9,
+  colorA: '#3a2a6a', colorB: '#7fe8ff', colorBg: '#07080c',
+}, U);
+const THEME = THEMES[CFG.palette] || THEMES.rgb;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, cols = 0, rows = 0, cw = 0, ch = 0, dpr = 1;
+let heat = new Float32Array(0);
+let reveal = new Float32Array(0);
+let mask = new Float32Array(0);
+let edgeStr = new Float32Array(0);
+let edgeCh = new Uint8Array(0);
+let picR = new Uint8Array(0), picG = new Uint8Array(0), picB = new Uint8Array(0);
+let picImg = null, isPic = false;
+let phot = new Float32Array(0), pmCanvas = null, pmCtx = null, pmImg = null, ptCanvas = null, ptCtx = null, photoLayer = null;
+
+/* ---- Glyph ramp: every candidate glyph is rendered and sorted by how much ink it really has ---- */
+function buildRamp() {
+  if (CFG.rampMode === 'classic') return ' .:-=+*#%@'.split('');
+  const cand = " .'`^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$".split('');
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 48;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.font = '40px ui-monospace, Consolas, Menlo, "DejaVu Sans Mono", monospace';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const list = cand.map((chr) => {
+    g.clearRect(0, 0, 48, 48);
+    g.fillStyle = '#fff';
+    g.fillText(chr, 24, 26);
+    const d = g.getImageData(0, 0, 48, 48).data;
+    let s = 0;
+    for (let i = 3; i < d.length; i += 4) s += d[i];
+    return { chr: chr, s: s };
+  });
+  list.sort((a, b) => a.s - b.s);
+  const max = list[list.length - 1].s || 1;
+  const out = [];
+  let last = -1;
+  for (const r of list) {
+    const dn = r.s / max;
+    if (out.length === 0 || dn - last > 0.012) { out.push(r.chr); last = dn; }   // skip near-duplicates
+  }
+  out[0] = ' ';
+  return out;
+}
+const RAMP = buildRamp();
+const rampLen = RAMP.length;
+const EDGE = ['', '-', '\\', '|', '/'];
+const BG_RAMP = ' .:-=+*#%@'.split('');
+const BG_LEN = BG_RAMP.length;
+
+const BUCKETS = 16;
+const HUES = 24;
+const rgbColors = Array.from({ length: HUES }, (_, h) =>
+  Array.from({ length: BUCKETS }, (_, b) =>
+    'hsl(' + ((h * 360) / HUES) + ',100%,' + (12 + (b / (BUCKETS - 1)) * 58) + '%)'));
+const photoCache = new Array(32768);
+
+/* ---- Colour tables: TABLE[tint][brightnessBucket] = css colour string ---- */
+let TABLE = [], TINTS = 1, bgNow = THEME.bg;
+const HEXRE = /^#[0-9a-fA-F]{6}$/;
+function hexRgb(h, dflt) { const s = HEXRE.test(h) ? h : dflt; return [parseInt(s.substr(1, 2), 16), parseInt(s.substr(3, 2), 16), parseInt(s.substr(5, 2), 16)]; }
+function lerp3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function rgbStr(c) { return 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')'; }
+function flatTable(low, high) {
+  TINTS = 1;
+  TABLE = [Array.from({ length: BUCKETS }, (_, b) => rgbStr(lerp3(low, high, b / (BUCKETS - 1))))];
+}
+function stopsAt(stops, u) {
+  const n = stops.length - 1;
+  const p = Math.min(n - 1e-6, Math.max(0, u * n));
+  const i = Math.floor(p);
+  return lerp3(stops[i], stops[i + 1], p - i);
+}
+function posTable(stops) {
+  TINTS = 16; TABLE = [];
+  for (let k = 0; k < TINTS; k++) {
+    const base = stopsAt(stops, k / (TINTS - 1));
+    const row = [];
+    for (let b = 0; b < BUCKETS; b++) {
+      const u = b / (BUCKETS - 1), f = 0.26 + 0.74 * u;
+      let c = [base[0] * f, base[1] * f, base[2] * f];
+      if (u > 0.85) { const lift = ((u - 0.85) / 0.15) * 0.45; c = c.map((v) => v + (255 - v) * lift); }
+      row.push(rgbStr(c));
+    }
+    TABLE.push(row);
+  }
+}
+function todColor() {
+  const d = new Date(), h = d.getHours() + d.getMinutes() / 60;
+  const keys = [[0, [70, 90, 200]], [6, [255, 140, 80]], [12, [190, 235, 255]], [18, [255, 100, 120]], [24, [70, 90, 200]]];
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (h >= keys[i][0] && h <= keys[i + 1][0]) return lerp3(keys[i][1], keys[i + 1][1], (h - keys[i][0]) / (keys[i + 1][0] - keys[i][0]));
+  }
+  return keys[0][1];
+}
+function setupTheme() {
+  bgNow = THEME.bg;
+  if (THEME.kind === 'flat') flatTable(THEME.low, THEME.high);
+  else if (THEME.kind === 'pos') posTable(THEME.stops);
+  else if (THEME.kind === 'tod') { const c = todColor(); flatTable(c.map((v) => v * 0.22), c); bgNow = rgbStr(c.map((v) => v * 0.06)); }
+  else if (THEME.kind === 'custom') { flatTable(hexRgb(CFG.colorA, '#3a2a6a'), hexRgb(CFG.colorB, '#7fe8ff')); bgNow = rgbStr(hexRgb(CFG.colorBg, '#07080c')); }
+}
+setupTheme();
+
+function boxBlur(src, w, h, rx, ry) {
+  const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+  const nx = 2 * rx + 1, ny = 2 * ry + 1;
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      let s = 0;
+      for (let k = -rx; k <= rx; k++) { let xx = x + k; if (xx < 0) xx = 0; else if (xx >= w) xx = w - 1; s += src[row + xx]; }
+      tmp[row + x] = s / nx;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let s = 0;
+      for (let k = -ry; k <= ry; k++) { let yy = y + k; if (yy < 0) yy = 0; else if (yy >= h) yy = h - 1; s += tmp[yy * w + x]; }
+      out[y * w + x] = s / ny;
+    }
+  }
+  return out;
+}
+
+function buildPicMask(img) {
+  const SS = 3;                                        // supersample so each cell is a true area average
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const s = CFG.fit === 'cover' ? Math.max(W / iw, H / ih) : Math.min(W / iw, H / ih) * CFG.imageScale;
+  const gw = (iw * s) / cw, gh = (ih * s) / ch;        // image size in grid cells (cells are taller than wide)
+  const off = document.createElement('canvas');
+  off.width = cols * SS; off.height = rows * SS;
+  const m = off.getContext('2d', { willReadFrequently: true });
+  m.imageSmoothingEnabled = true;
+  m.imageSmoothingQuality = 'high';
+  m.drawImage(img, ((cols - gw) / 2) * SS, ((rows - gh) / 2) * SS, gw * SS, gh * SS);
+  const d = m.getImageData(0, 0, off.width, off.height).data;
+  const ow = off.width, N = cols * rows;
+  const L = new Float32Array(N), cov = new Float32Array(N);
+  const R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N);
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      let sa = 0, sr = 0, sg = 0, sb = 0;
+      for (let yy = 0; yy < SS; yy++) {
+        let p = ((j * SS + yy) * ow + i * SS) * 4;
+        for (let xx = 0; xx < SS; xx++, p += 4) {
+          const a = d[p + 3];
+          sa += a; sr += d[p] * a; sg += d[p + 1] * a; sb += d[p + 2] * a;
+        }
+      }
+      const k = j * cols + i;
+      cov[k] = sa / (255 * SS * SS);
+      if (sa > 0) {
+        R[k] = sr / sa; G[k] = sg / sa; B[k] = sb / sa;
+        L[k] = (0.2126 * R[k] + 0.7152 * G[k] + 0.0722 * B[k]) / 255;
+      }
+    }
+  }
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+  // 1) Auto levels: stretch the 2nd..98th percentile of the picture to the full 0..1 range.
+  if (CFG.autoLevels) {
+    const vals = [];
+    for (let k = 0; k < N; k++) if (cov[k] > 0.6) vals.push(L[k]);
+    if (vals.length > 50) {
+      vals.sort((a, b) => a - b);
+      const lo = vals[Math.floor(vals.length * 0.02)], hi = vals[Math.floor(vals.length * 0.98)];
+      if (hi - lo > 0.08) for (let k = 0; k < N; k++) L[k] = (L[k] - lo) / (hi - lo);
+    }
+  }
+  // 2) Contrast and brightness (gamma).
+  for (let k = 0; k < N; k++) {
+    const v = clamp01((clamp01(L[k]) - 0.5) * CFG.contrast + 0.5);
+    L[k] = Math.pow(v, CFG.gamma);
+  }
+  // 3) Detail boost (unsharp mask) so features survive the low resolution of a character grid.
+  if (CFG.detail > 0) {
+    const bl = boxBlur(L, cols, rows, 3, 2);
+    for (let k = 0; k < N; k++) L[k] = clamp01(L[k] + CFG.detail * (L[k] - bl[k]));
+  }
+  if (CFG.invert) for (let k = 0; k < N; k++) L[k] = 1 - L[k];
+
+  // 4) Edge direction per cell, so outlines can be drawn with / \ | - glyphs.
+  edgeStr = new Float32Array(N);
+  edgeCh = new Uint8Array(N);
+  const at = (xx, yy, c) => { const q = yy * cols + xx; return cov[q] > 0.5 ? L[q] : c; };
+  for (let y = 1; y < rows - 1; y++) {
+    for (let x = 1; x < cols - 1; x++) {
+      const k = y * cols + x;
+      if (cov[k] < 0.5) continue;
+      const c = L[k];
+      const tl = at(x - 1, y - 1, c), t = at(x, y - 1, c), tr = at(x + 1, y - 1, c);
+      const l = at(x - 1, y, c), r = at(x + 1, y, c);
+      const bl = at(x - 1, y + 1, c), b = at(x, y + 1, c), br = at(x + 1, y + 1, c);
+      const gx = ((tr + 2 * r + br) - (tl + 2 * l + bl)) / 8;
+      const gy = ((bl + 2 * b + br) - (tl + 2 * t + tr)) / 8;
+      const mag = Math.hypot(gx, gy);
+      const str = mag / 0.22;
+      edgeStr[k] = str > 1 ? 1 : str;
+      if (mag > 0.05) {
+        const ex = -gy / ch, ey = gx / cw;               // edge direction in screen space (y down)
+        let phi = Math.atan2(ey, ex);
+        if (phi < 0) phi += Math.PI;
+        edgeCh[k] = (Math.floor((phi + Math.PI / 8) / (Math.PI / 4)) % 4) + 1;
+      }
+    }
+  }
+
+  // 5) Final mask plus a colour per cell (hue kept, brightness handled at draw time).
+  picR = new Uint8Array(N); picG = new Uint8Array(N); picB = new Uint8Array(N);
+  for (let k = 0; k < N; k++) {
+    mask[k] = L[k] * cov[k];
+    const mx = Math.max(R[k], G[k], B[k], 1);
+    picR[k] = (R[k] / mx) * 255; picG[k] = (G[k] / mx) * 255; picB[k] = (B[k] / mx) * 255;
+  }
+}
+
+function buildWordMask() {
+  if (!CFG.word) return;
+  const off = document.createElement('canvas');
+  off.width = cols; off.height = rows;
+  const m = off.getContext('2d', { willReadFrequently: true });
+  const aspect = cw / ch;
+  const sx = 1 / aspect;
+  m.font = 'bold 100px ui-monospace, Consolas, Menlo, monospace';
+  const w100 = m.measureText(CFG.word).width * sx;
+  const fs = Math.min(rows * 0.5, 100 * (cols * 0.7) / w100);
+  m.setTransform(sx, 0, 0, 1, 0, 0);
+  m.font = 'bold ' + fs + 'px ui-monospace, Consolas, Menlo, monospace';
+  m.textAlign = 'center';
+  m.textBaseline = 'middle';
+  m.fillStyle = '#fff';
+  m.fillText(CFG.word, (cols / 2) / sx, rows / 2);
+  const data = m.getImageData(0, 0, cols, rows).data;
+  for (let i = 0; i < cols * rows; i++) mask[i] = data[i * 4 + 3] / 255;
+}
+
+// Photo reveal: the original picture, placed exactly where the ASCII version sits, shown through a soft moving mask.
+function buildPhotoLayer(img) {
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const s = CFG.fit === 'cover' ? Math.max(W / iw, H / ih) : Math.min(W / iw, H / ih) * CFG.imageScale;
+  const gw = (iw * s) / cw, gh = (ih * s) / ch;
+  photoLayer = document.createElement('canvas');
+  photoLayer.width = Math.ceil(W); photoLayer.height = Math.ceil(H);
+  const g = photoLayer.getContext('2d');
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(img, ((cols - gw) / 2) * cw, ((rows - gh) / 2) * ch, iw * s, ih * s);
+  ptCanvas = document.createElement('canvas');
+  ptCanvas.width = photoLayer.width; ptCanvas.height = photoLayer.height;
+  ptCtx = ptCanvas.getContext('2d');
+  pmCanvas = document.createElement('canvas');
+  pmCanvas.width = cols; pmCanvas.height = rows;
+  pmCtx = pmCanvas.getContext('2d');
+  pmImg = pmCtx.createImageData(cols, rows);
+  for (let k = 0; k < cols * rows; k++) { pmImg.data[k * 4] = 255; pmImg.data[k * 4 + 1] = 255; pmImg.data[k * 4 + 2] = 255; }
+}
+
+function buildMask() {
+  mask = new Float32Array(cols * rows);
+  isPic = !!picImg;
+  if (picImg) buildPicMask(picImg); else buildWordMask();
+  pmImg = null;
+  if (picImg && CFG.photoReveal) buildPhotoLayer(picImg);
+}
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.font = CFG.cell + 'px ui-monospace, Consolas, Menlo, "DejaVu Sans Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  cw = ctx.measureText('M').width;
+  ch = CFG.cell;
+  cols = Math.ceil(W / cw) + 1;
+  rows = Math.ceil(H / ch) + 1;
+  heat = new Float32Array(cols * rows);
+  reveal = new Float32Array(cols * rows);
+  phot = new Float32Array(cols * rows);
+  buildMask();
+}
+on(window, 'resize', resize);
+resize();
+
+if (CFG.image) {
+  const im = new Image();
+  im.onload = function () { picImg = im; buildMask(); };
+  im.src = CFG.image;
+}
+/* ---- Optional overlays: CRT scanlines + vignette, and the FPS readout ---- */
+if (CFG.scan) {
+  const o = document.createElement('div');
+  o.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;background:' +
+    'repeating-linear-gradient(to bottom,rgba(0,0,0,.28) 0,rgba(0,0,0,.28) 1px,transparent 1px,transparent 3px),' +
+    'radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%)';
+  document.body.appendChild(o);
+  __undo.push(function () { o.remove(); });
+}
+let hud = null;
+if (CFG.showFps) {
+  hud = document.createElement('div');
+  hud.style.cssText = 'position:fixed;left:8px;top:8px;padding:3px 7px;font:12px ui-monospace,Consolas,monospace;color:#9f9;background:rgba(0,0,0,.6);border-radius:4px;pointer-events:none';
+  document.body.appendChild(hud);
+  __undo.push(function () { hud.remove(); });
+}
+
+/* ---- Pointer ---- */
+let target = { x: W / 2, y: H / 2 };
+let pos = { x: W / 2, y: H / 2 };
+let lastMove = 0;
+const ripples = [];
+const CLICKS = {
+  ripple: { speed: 460, width: 46, life: 1.8,  push: 7,  bright: 0.85 },
+  burst:  { speed: 900, width: 70, life: 0.95, push: 24, bright: 1.0 },
+};
+const CK = CLICKS[CFG.click] || null;
+function onMove(x, y) { target.x = x; target.y = y; lastMove = performance.now(); }
+on(window, 'mousemove', (e) => onMove(e.clientX, e.clientY));
+on(window, 'pointermove', (e) => onMove(e.clientX, e.clientY));
+on(window, 'touchmove', (e) => { const t = e.touches[0]; if (t) onMove(t.clientX, t.clientY); }, { passive: true });
+function addRipple(x, y) {
+  if (!CK) return;
+  ripples.push({ x: x, y: y, t0: performance.now() / 1000, p: CK });
+  if (ripples.length > 4) ripples.shift();
+}
+on(window, 'mousedown', (e) => addRipple(e.clientX, e.clientY));
+on(window, 'touchstart', (e) => { const t = e.touches[0]; if (t) addRipple(t.clientX, t.clientY); }, { passive: true });
+
+/* ---- Cursor reactions ---- */
+const R_CODE = { push: 1, pull: 2, swirl: 3, lens: 4, wake: 5, scatter: 6, flashlight: 7 };
+const RC = R_CODE[CFG.reaction] || 1;
+const K = Math.max(0.2, Math.min(2.5, Number(CFG.strength) || 1));
+const FONT_FAM = 'ui-monospace, Consolas, Menlo, "DejaVu Sans Mono", monospace';
+const r2 = CFG.radius * CFG.radius;
+const clampN = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+let lastFrame = 0, vx = 0, vy = 0, workAvg = 8, fpsN = 0, fpsT0 = performance.now(), drawn = 0, curSz = CFG.cell, lastTod = 0;
+window.__perf = { fps: 0, work: 0, cells: 0 };
+
+function frame(now) {
+  if (!__alive) return;
+  requestAnimationFrame(frame);
+  const interval = CFG.adaptive ? Math.min(100, Math.max(1000 / CFG.fps, workAvg * 1.7)) : 1000 / CFG.fps;
+  if (now - lastFrame < interval - 1) return;
+  const dtMs = lastFrame ? now - lastFrame : 33;
+  lastFrame = now;
+  const w0 = performance.now();
+  const t = now / 1000;
+
+  if (THEME.kind === 'tod' && now - lastTod > 20000) { setupTheme(); lastTod = now; }
+
+  if (lastMove === 0 || now - lastMove > CFG.idleAfterMs) {
+    target.x = W * (0.5 + 0.38 * Math.sin(t * 0.37));
+    target.y = H * (0.5 + 0.34 * Math.sin(t * 0.53 + 1.3));
+  }
+  const ppx = pos.x, ppy = pos.y;
+  pos.x += (target.x - pos.x) * 0.18;
+  pos.y += (target.y - pos.y) * 0.18;
+  const dt = clampN(dtMs / 1000, 0.001, 0.2);
+  vx = vx * 0.75 + ((pos.x - ppx) / dt) * 0.25;
+  vy = vy * 0.75 + ((pos.y - ppy) / dt) * 0.25;
+  const sp = Math.min(1, Math.hypot(vx, vy) / 700);
+
+  for (let k = ripples.length - 1; k >= 0; k--) {
+    if (t - ripples[k].t0 > ripples[k].p.life) ripples.splice(k, 1);
+  }
+  const live = ripples.map((r) => {
+    const age = t - r.t0;
+    return { x: r.x, y: r.y, radius: age * r.p.speed, amp: 1 - age / r.p.life, w: r.p.width, push: r.p.push, bright: r.p.bright };
+  });
+
+  if (RC === 4) { ctx.font = CFG.cell + 'px ' + FONT_FAM; curSz = CFG.cell; }
+  ctx.fillStyle = bgNow;
+  ctx.fillRect(0, 0, W, H);
+
+  const tick = Math.floor(t * 12);
+  const jt = Math.floor(t * 30);
+  const photoMode = THEME.kind === 'photo' && isPic;
+  const hueMode = THEME.kind === 'hue' || THEME.kind === 'cursor' || (THEME.kind === 'photo' && !isPic);
+  const flash = RC === 7;
+  const PR = !!CFG.photoReveal && isPic && !!pmImg;
+  const PS = Math.max(0.3, Number(CFG.photoSize) || 1), PR2 = r2 * PS * PS, PFADE = Math.min(0.99, Math.max(0.5, Number(CFG.photoFade) || 0.9));
+  const pmData = PR ? pmImg.data : null;
+  let bi0 = cols, bi1 = -1, bj0 = rows, bj1 = -1;                         // bounding box of the revealed area
+  let lastKey = -1;
+  drawn = 0;
+
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const bx = i * cw + cw / 2;
+      const by = j * ch + ch / 2;
+      const idx = j * cols + i;
+
+      const dx = bx - pos.x, dy = by - pos.y;
+      const d2 = dx * dx + dy * dy;
+      const fall = Math.exp(-d2 / r2);
+
+      const hv = heat[idx] * CFG.trailDecay;
+      heat[idx] = fall > hv ? fall : hv;
+      const rv = reveal[idx] * CFG.wordDecay;
+      reveal[idx] = fall > rv ? fall : rv;
+
+      const a = Math.sin(bx * 0.012 + t * 0.7 + Math.sin(by * 0.01 + t * 0.4) * 2.0);
+      const b = Math.sin(by * 0.016 - t * 0.5 + Math.cos(bx * 0.008 + t * 0.3) * 1.5);
+      const vbg = (0.5 + 0.25 * a + 0.25 * b) * CFG.ambient * (flash ? 0.22 : 1) + heat[idx] * (flash ? 0.25 : 0.7);
+
+      if (PR) {
+        const fp = Math.exp(-d2 / PR2);
+        const pv = phot[idx] * PFADE;
+        const pp = fp > pv ? fp : pv;
+        phot[idx] = pp;
+        const al = (pp * (1 + 0.35 * (a + b) * 0.5) - 0.30) / 0.35;      // wobbling edge, so it is not a plain circle
+        pmData[idx * 4 + 3] = al <= 0 ? 0 : al >= 1 ? 255 : (al * 255) | 0;
+        if (al > 0) { if (i < bi0) bi0 = i; if (i > bi1) bi1 = i; if (j < bj0) bj0 = j; if (j > bj1) bj1 = j; }
+      }
+
+      const mk = mask[idx];
+      const rvEff = flash ? fall : (isPic ? (reveal[idx] > CFG.restVis ? reveal[idx] : CFG.restVis) : reveal[idx]);
+      const glow = mk * rvEff;
+      const wpic = isPic ? Math.min(1, glow * 2.5) : 0;
+
+      let v;
+      if (isPic) {
+        const vp = Math.min(1, mk * CFG.wordStrength + heat[idx] * 0.2);
+        v = vbg * (1 - wpic) + vp * wpic;
+      } else {
+        v = vbg + glow * CFG.wordStrength;
+      }
+
+      let ox = 0, oy = 0;
+      for (let k = 0; k < live.length; k++) {
+        const r = live[k];
+        const rdx = bx - r.x, rdy = by - r.y;
+        const dd = Math.sqrt(rdx * rdx + rdy * rdy) || 1;
+        const diff = (dd - r.radius) / r.w;
+        const ring = Math.exp(-diff * diff) * r.amp;
+        if (ring > 0.01) {
+          v += ring * r.bright;
+          ox += (rdx / dd) * ring * r.push;
+          oy += (rdy / dd) * ring * r.push;
+        }
+      }
+
+      if (v > 1) v = 1;
+      if (v < 0.06) continue;
+
+      let glyph = '';
+      if (isPic && wpic > 0.35) {
+        const pci = Math.round(mk * (rampLen - 1));
+        const vci = Math.min(rampLen - 1, Math.floor(v * rampLen));
+        const ci = Math.round(vci * (1 - wpic) + pci * wpic);
+        if (CFG.edgeGlyphs && wpic > 0.5 && edgeCh[idx] && edgeStr[idx] > 0.3 && pci > 0) {
+          glyph = EDGE[edgeCh[idx]];
+          v = Math.min(1, v + 0.12);
+        } else if (ci > 0) {
+          glyph = RAMP[ci];
+        }
+      } else if (!isPic && glow > 0.3) {
+        glyph = RAMP[rampLen - 1];
+      } else {
+        let bi = Math.min(BG_LEN - 1, Math.floor(v * BG_LEN));
+        if (fall > 0.4) {
+          const h = ((i * 73856093) ^ (j * 19349663) ^ (tick * 83492791)) >>> 0;
+          bi = Math.max(1, Math.min(BG_LEN - 1, bi + (h % 3) - 1));
+        }
+        if (bi > 0) glyph = BG_RAMP[bi];
+      }
+      if (!glyph) continue;
+
+      const bucket = Math.min(BUCKETS - 1, Math.floor(v * BUCKETS));
+      if (photoMode) {
+        let cr = 95, cg = 110, cb = 140;
+        if (wpic > 0.05) { cr = picR[idx]; cg = picG[idx]; cb = picB[idx]; }
+        const kk = 0.25 + 0.75 * v;
+        const q = ((((cr * kk) | 0) >> 3) << 10) | ((((cg * kk) | 0) >> 3) << 5) | (((cb * kk) | 0) >> 3);
+        if (q !== lastKey) {
+          let str = photoCache[q];
+          if (!str) {
+            const rr = (q >> 10) & 31, gg = (q >> 5) & 31, bb = q & 31;
+            str = 'rgb(' + ((rr << 3) | (rr >> 2)) + ',' + ((gg << 3) | (gg >> 2)) + ',' + ((bb << 3) | (bb >> 2)) + ')';
+            photoCache[q] = str;
+          }
+          ctx.fillStyle = str;
+          lastKey = q;
+        }
+      } else if (hueMode) {
+        let hueIdx;
+        if (THEME.kind === 'cursor') {
+          hueIdx = ((((Math.atan2(dy, dx) * 57.2958 + Math.sqrt(d2) * 0.18 + t * 30) % 360) + 360) % 360 / (360 / HUES)) | 0;
+        } else {
+          hueIdx = (((bx * 0.10 + by * 0.06 + t * 45) % 360) / (360 / HUES)) | 0;
+        }
+        const key = hueIdx * BUCKETS + bucket;
+        if (key !== lastKey) { ctx.fillStyle = rgbColors[hueIdx][bucket]; lastKey = key; }
+      } else {
+        let tint = 0;
+        if (TINTS > 1) {
+          let u;
+          if (THEME.axis === 'y') u = by / H * 0.9 + 0.05 * Math.sin(t * 0.2 + bx * 0.004);
+          else u = (bx / W * 0.6 + by / H * 0.4 + t * 0.03) % 1;
+          tint = u <= 0 ? 0 : u >= 1 ? TINTS - 1 : Math.round(u * (TINTS - 1));
+        }
+        const key = 100000 + tint * BUCKETS + bucket;
+        if (key !== lastKey) { ctx.fillStyle = TABLE[tint][bucket]; lastKey = key; }
+      }
+
+      let x = bx + ox, y = by + oy;
+      if (fall > 0.01) {
+        const d = Math.sqrt(d2) || 1;
+        switch (RC) {
+          case 1: { const s = fall * CFG.push * K; x += (dx / d) * s; y += (dy / d) * s; break; }
+          case 2: { const s = Math.min(fall * CFG.push * 1.6 * K, d * 0.85); x -= (dx / d) * s; y -= (dy / d) * s; break; }
+          case 3: {
+            const ang = fall * (1.1 * K + 0.9 * Math.sin(t * 0.9));
+            const c = Math.cos(ang), sn = Math.sin(ang);
+            x += dx * c - dy * sn - dx; y += dx * sn + dy * c - dy; break;
+          }
+          case 4: {
+            const m = 0.5 * K * fall; x += dx * m; y += dy * m;
+            const nsz = Math.round(CFG.cell * (1 + 0.9 * K * fall * fall) / 2) * 2;
+            if (nsz !== curSz) { ctx.font = nsz + 'px ' + FONT_FAM; curSz = nsz; }
+            break;
+          }
+          case 5: { x += clampN(vx * 0.10 * fall * K, -28, 28); y += clampN(vy * 0.10 * fall * K, -28, 28); break; }
+          case 6: {
+            const h = ((i * 73856093) ^ (j * 19349663) ^ (jt * 83492791)) >>> 0;
+            const amp = fall * (2 + 16 * sp) * K;
+            x += (((h & 1023) / 1023) - 0.5) * 2 * amp; y += ((((h >>> 10) & 1023) / 1023) - 0.5) * 2 * amp; break;
+          }
+          default: break;
+        }
+      } else if (RC === 4 && curSz !== CFG.cell) { ctx.font = CFG.cell + 'px ' + FONT_FAM; curSz = CFG.cell; }
+      drawn++;
+      ctx.fillText(glyph, x, y);
+    }
+  }
+
+  if (PR && bi1 >= 0) {
+    // Only the part of the screen that is actually revealed gets composited (much cheaper than full-screen).
+    pmCtx.putImageData(pmImg, 0, 0);
+    const sx = Math.max(0, bi0 - 1), sy = Math.max(0, bj0 - 1);
+    const sw = Math.min(cols, bi1 + 2) - sx, sh = Math.min(rows, bj1 + 2) - sy;
+    const dx0 = Math.floor(sx * cw), dy0 = Math.floor(sy * ch);
+    const dw = Math.min(photoLayer.width - dx0, Math.ceil(sw * cw) + 1), dh = Math.min(photoLayer.height - dy0, Math.ceil(sh * ch) + 1);
+    if (dw > 0 && dh > 0) {
+      ptCtx.save();
+      ptCtx.beginPath(); ptCtx.rect(dx0, dy0, dw, dh); ptCtx.clip();
+      ptCtx.globalCompositeOperation = 'source-over';
+      ptCtx.clearRect(dx0, dy0, dw, dh);
+      ptCtx.drawImage(pmCanvas, sx, sy, sw, sh, sx * cw, sy * ch, sw * cw, sh * ch);   // soft, upscaled mask
+      ptCtx.globalCompositeOperation = 'source-in';
+      ptCtx.drawImage(photoLayer, dx0, dy0, dw, dh, dx0, dy0, dw, dh);                // keep the photo only where the mask is
+      ptCtx.restore();
+      ctx.drawImage(ptCanvas, dx0, dy0, dw, dh, dx0, dy0, dw, dh);
+    }
+  }
+
+  const w = performance.now() - w0;
+  workAvg = workAvg * 0.9 + w * 0.1;
+  fpsN++;
+  if (now - fpsT0 >= 500) {
+    const fps = fpsN * 1000 / (now - fpsT0);
+    fpsN = 0; fpsT0 = now;
+    window.__perf = { fps: fps, work: workAvg, cells: drawn };
+    if (hud) hud.textContent = fps.toFixed(0) + ' fps | ' + workAvg.toFixed(1) + ' ms | ' + drawn + ' glyphs';
+  }
+}
+requestAnimationFrame(frame);
+return function stop() { __alive = false; __undo.forEach(function (f) { f(); }); };
+};
+
+</script>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const ENGINE = $('engine').textContent;
+let imageData = '';
+
+// Wrap the engine and the chosen settings into one self-contained wallpaper page.
+function buildHtml(cfg, lively) {
+  const json = JSON.stringify(cfg).replace(/</g, '\\u003c');
+  const boot = lively ? livelyBoot() : 'window.__startWallpaper(window.__USER_CFG__ || {});';
+  return '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>ASCII wallpaper</title>' +
+    '<style>html,body{margin:0;height:100%;overflow:hidden;background:#0b0c0a}canvas{display:block;width:100vw;height:100vh}</style>' +
+    '</head><body><canvas id="c"></canvas>' +
+    '<scr' + 'ipt>window.__USER_CFG__=' + json + ';\n' + ENGINE + '\n' + boot + '\n</scr' + 'ipt></body></html>';
+}
+
+/* ---- Lively pack: index.html + LivelyProperties.json next to it, zipped ---- */
+const optList = (id) => Array.from($(id).options).map((o) => o.value);
+const LIVELY_LISTS = { palette: optList('palette'), reaction: optList('reaction'), click: optList('click'), fps: [20, 30, 45, 60] };
+
+// Receives the values Lively sends (on load and on every change) and restarts the engine with them.
+function livelyBoot() {
+  return '(function(){var BASE=window.__USER_CFG__||{},live={},stop=null,timer=0,L=' + JSON.stringify(LIVELY_LISTS) + ';' +
+    'var K={palette:"d",reaction:"d",click:"d",fps:"d",strength:"p",restVis:"p",radius:"n",cell:"n",edgeGlyphs:"b",invert:"b",word:"t",photoReveal:"b",photoSize:"p"};' +
+    'function restart(){if(stop)stop();stop=window.__startWallpaper(Object.assign({},BASE,live));}' +
+    'function schedule(){clearTimeout(timer);timer=setTimeout(restart,250);}' +
+    'window.livelyPropertyListener=function(n,v){var k=K[n];if(!k)return;' +
+    'if(k==="d"){if(L[n]&&L[n][v]!==undefined)live[n]=L[n][v];}' +
+    'else if(k==="p"){live[n]=Number(v)/100;}else if(k==="n"){live[n]=Number(v);}' +
+    'else if(k==="b"){live[n]=!!v;}else{live[n]=String(v).slice(0,14);}schedule();};' +
+    'schedule();})();';
+}
+
+function livelyProperties(cfg) {
+  const labelOf = (id) => Array.from($(id).options).map((o) => o.textContent);
+  const dd = (id, text) => ({ type: 'dropdown', text: text, items: labelOf(id), value: Math.max(0, LIVELY_LISTS[id].indexOf(cfg[id])) });
+  return {
+    palette: dd('palette', 'Colors'),
+    reaction: dd('reaction', 'Cursor effect'),
+    click: dd('click', 'Click effect'),
+    strength: { type: 'slider', text: 'Effect strength (%)', min: 40, max: 200, step: 5, value: Math.round(cfg.strength * 100 || 100) },
+    radius: { type: 'slider', text: 'Effect size (px)', min: 80, max: 360, step: 5, value: cfg.radius },
+    restVis: { type: 'slider', text: 'Image visible at rest (%)', min: 0, max: 80, step: 2, value: Math.round(cfg.restVis * 100) },
+    cell: { type: 'slider', text: 'Character size (px)', min: 10, max: 26, step: 1, value: cfg.cell },
+    edgeGlyphs: { type: 'checkbox', text: 'Draw outlines with / \\ | -', value: !!cfg.edgeGlyphs },
+    invert: { type: 'checkbox', text: 'Invert image', value: !!cfg.invert },
+    photoReveal: { type: 'checkbox', text: 'Reveal original photo near cursor', value: !!cfg.photoReveal },
+    photoSize: { type: 'slider', text: 'Reveal size (%)', min: 50, max: 160, step: 5, value: Math.round((cfg.photoSize || 1) * 100) },
+    fps: { type: 'dropdown', text: 'Frame rate cap', items: ['20 fps', '30 fps', '45 fps', '60 fps'], value: Math.max(0, LIVELY_LISTS.fps.indexOf(cfg.fps || 30)) },
+    word: { type: 'textbox', text: 'Word to reveal (no image only)', value: cfg.word || '' },
+  };
+}
+
+// Minimal ZIP writer (no compression), enough for Lively's importer.
+const CRC_T = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  let off = 0;
+  const u16 = (v) => [v & 255, (v >> 8) & 255], u32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  files.forEach((f) => {
+    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    const head = [0x50, 0x4b, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)];
+    parts.push(new Uint8Array(head), name, data);
+    central.push(new Uint8Array([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), name);
+    off += head.length + name.length + data.length;
+  });
+  let csize = 0; central.forEach((c) => { csize += c.length; });
+  const end = new Uint8Array([0x50, 0x4b, 5, 6, 0, 0, 0, 0, ...u16(files.length), ...u16(files.length), ...u32(csize), ...u32(off), 0, 0]);
+  return new Blob(parts.concat(central, [end]), { type: 'application/zip' });
+}
+
+function cfgFromUI() {
+  return {
+    palette: $('palette').value,
+    rampMode: $('ramp').value,
+    image: imageData,
+    fit: $('fit').value,
+    imageScale: Number($('scale').value),
+    autoLevels: $('autolv').checked,
+    edgeGlyphs: $('edges').checked,
+    invert: $('invert').checked,
+    detail: Number($('detail').value),
+    contrast: Number($('contrast').value),
+    gamma: 1 / Number($('bright').value),
+    restVis: Number($('rest').value),
+    wordDecay: Number($('decay').value),
+    radius: Number($('radius').value),
+    cell: Number($('cell').value),
+    word: $('word').value.slice(0, 14),
+    photoReveal: $('photoRev').checked,
+    photoSize: Number($('prs').value),
+    photoFade: Number($('prf').value),
+    reaction: $('reaction').value,
+    click: $('click').value,
+  };
+}
+
+function updateLabels() {
+  $('scaleV').textContent = Math.round(Number($('scale').value) * 100) + '%';
+  $('detailV').textContent = Number($('detail').value).toFixed(2);
+  $('contrastV').textContent = Number($('contrast').value).toFixed(2);
+  $('brightV').textContent = Number($('bright').value).toFixed(2);
+  $('restV').textContent = Math.round(Number($('rest').value) * 100) + '%';
+  $('decayV').textContent = Number($('decay').value).toFixed(3);
+  $('radiusV').textContent = $('radius').value + ' px';
+  $('cellV').textContent = $('cell').value + ' px';
+  $('prsV').textContent = Math.round(Number($('prs').value) * 100) + '%';
+  $('prfV').textContent = Number($('prf').value).toFixed(2);
+}
+
+let timer = 0;
+function refresh() {
+  updateLabels();
+  clearTimeout(timer);
+  timer = setTimeout(() => { $('frame').srcdoc = buildHtml(cfgFromUI()); }, 180);
+}
+
+function fitPreview() {
+  const box = $('stage');
+  const s = box.clientWidth / 1920;
+  $('frame').style.transform = 'scale(' + s + ')';
+  box.style.height = (1080 * s) + 'px';
+}
+window.addEventListener('resize', fitPreview);
+
+function loadFile(file) {
+  if (!file || !file.type.startsWith('image/')) { $('info').textContent = 'That is not an image file.'; return; }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    // Keep enough resolution for the supersampled downscale, but stay small so the final file stays light.
+    const max = 960;
+    const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * sc);
+    c.height = Math.round(img.naturalHeight * sc);
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, c.width, c.height);
+    // Only keep PNG when the picture really has transparency; otherwise JPEG is far smaller.
+    const px = g.getImageData(0, 0, c.width, c.height).data;
+    let hasAlpha = false;
+    for (let i = 3; i < px.length; i += 4) { if (px[i] < 250) { hasAlpha = true; break; } }
+    imageData = c.toDataURL(hasAlpha ? 'image/png' : 'image/jpeg', 0.92);
+    URL.revokeObjectURL(url);
+    $('info').textContent = file.name + ' embedded (' + Math.round(imageData.length / 1024) + ' KB)';
+    refresh();
+  };
+  img.onerror = () => { $('info').textContent = 'Could not read that image.'; };
+  img.src = url;
+}
+
+$('drop').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+['dragenter', 'dragover'].forEach((ev) => window.addEventListener(ev, (e) => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => window.addEventListener(ev, (e) => { e.preventDefault(); $('drop').classList.remove('over'); }));
+window.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); });
+
+['palette', 'ramp', 'fit', 'scale', 'autolv', 'edges', 'invert', 'detail', 'contrast', 'bright', 'rest', 'decay', 'radius', 'cell', 'word', 'reaction', 'click', 'photoRev', 'prs', 'prf'].forEach((id) => {
+  $(id).addEventListener('input', refresh);
+  $(id).addEventListener('change', refresh);
+});
+
+$('remove').addEventListener('click', () => {
+  imageData = '';
+  $('file').value = '';
+  $('info').textContent = 'No image yet. Only the animated background is shown.';
+  refresh();
+});
+
+$('download').addEventListener('click', () => {
+  const blob = new Blob([buildHtml(cfgFromUI())], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ascii-wallpaper-custom.html';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+
+/* ---- Save / load settings ---- */
+const SET_IDS = ['palette', 'ramp', 'fit', 'scale', 'autolv', 'edges', 'invert', 'detail', 'contrast', 'bright', 'rest', 'decay', 'radius', 'cell', 'word', 'reaction', 'click', 'photoRev', 'prs', 'prf'];
+function getSettings() {
+  const o = {};
+  SET_IDS.forEach((id) => { const el = $(id); o[id] = el.type === 'checkbox' ? el.checked : el.value; });
+  return o;
+}
+function applySettings(o) {
+  let n = 0;
+  if (!o || typeof o !== 'object') return 0;
+  SET_IDS.forEach((id) => {
+    if (!Object.prototype.hasOwnProperty.call(o, id)) return;
+    const el = $(id), v = o[id];
+    if (el.type === 'checkbox') { if (typeof v === 'boolean') { el.checked = v; n++; } }
+    else if (el.type === 'range') { const x = Number(v); if (Number.isFinite(x)) { el.value = Math.min(Number(el.max), Math.max(Number(el.min), x)); n++; } }
+    else if (el.tagName === 'SELECT') { if (Array.from(el.options).some((p) => p.value === String(v))) { el.value = String(v); n++; } }
+    else if (el.type === 'text') { if (typeof v === 'string') { el.value = v.slice(0, 14); n++; } }
+  });
+  return n;
+}
+function remember() { try { localStorage.setItem('ascii-wallpaper-settings', JSON.stringify(getSettings())); } catch (e) {} }
+SET_IDS.forEach((id) => { $(id).addEventListener('input', remember); $(id).addEventListener('change', remember); });
+try { const saved = localStorage.getItem('ascii-wallpaper-settings'); if (saved) applySettings(JSON.parse(saved)); } catch (e) {}
+
+$('saveSet').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ format: 'ascii-wallpaper-settings', settings: getSettings() }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'ascii-wallpaper-settings.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+$('loadSet').addEventListener('click', () => $('setFile').click());
+$('setFile').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const o = JSON.parse(String(r.result));
+      const n = applySettings(o && o.settings ? o.settings : o);
+      $('info').textContent = n ? 'Settings loaded (' + n + ').' : 'No recognizable settings in that file.';
+      remember();
+    } catch (err) { $('info').textContent = 'Could not read that settings file.'; }
+    $('setFile').value = '';
+    refresh();
+  };
+  r.readAsText(f);
+});
+
+$('downloadLively').addEventListener('click', () => {
+  const cfg = cfgFromUI();
+  const blob = makeZip([
+    { name: 'index.html', text: buildHtml(cfg, true) },
+    { name: 'LivelyProperties.json', text: JSON.stringify(livelyProperties(cfg), null, 2) },
+  ]);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'ascii-wallpaper-lively.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+
+fitPreview();
+refresh();
+</script>
+</body>
+</html>
