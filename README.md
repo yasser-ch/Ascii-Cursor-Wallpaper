@@ -8,7 +8,6 @@ It is one self-contained HTML file: no install, no server, no dependencies, and 
 
 
 
-https://github.com/user-attachments/assets/5ec5ec07-4023-4020-98cf-ea852ea6e6cd
 
 
 
