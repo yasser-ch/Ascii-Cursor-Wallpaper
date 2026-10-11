@@ -8,6 +8,10 @@ It is one self-contained HTML file: no install, no server, no dependencies, and 
 
 <sub>Running as a live wallpaper on a Windows desktop (via Lively). Artwork credit below.</sub>
 
+**Before and after:**
+
+![Original image next to its ASCII wallpaper](docs/screenshot-before-after.jpg)
+
 ![Builder](docs/screenshot-builder.jpg)
 
 ## What it does
@@ -27,7 +31,7 @@ It is one self-contained HTML file: no install, no server, no dependencies, and 
 
 **Photo reveal** (the original picture shows through around the cursor):
 
-![Photo reveal](docs/screenshot-photo-reveal.jpg)
+![Photo reveal](docs/screenshot-reveal.jpg)
 
 ![Themes](docs/screenshot-themes.jpg)
 
@@ -77,7 +81,7 @@ The suite drives a real headless Chromium: it renders every cursor effect and th
 
 ## Credits
 
-- Demo wallpaper: red spider lily artwork from [Wallhaven](https://wallhaven.cc/), uploaded by [leoscau](https://wallhaven.cc/user/leoscau). The original artist is not known to the author, and the artwork itself is not included in this repository, only ASCII renderings of it. If you are the artist and want it credited differently or removed, please open an issue.
+- Demo wallpaper: red spider lily artwork from [Wallhaven](https://wallhaven.cc/), uploaded by [leoscau](https://wallhaven.cc/user/leoscau). The original artist is not known to the author. The artwork is shown here only to demonstrate the conversion; if you are the artist and want it credited differently or removed, please open an issue.
 - Test and photo-reveal image: astronaut portrait of Eileen Collins, NASA, public domain (as distributed with [scikit-image](https://scikit-image.org/)).
 
 Made by Yasser Chettour.
